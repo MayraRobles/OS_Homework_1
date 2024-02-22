@@ -20,10 +20,10 @@ void __clean_up_memory(char *current_line, char **lines,
 		       size_t *lines_length, size_t lines_len);
 
 int read_from_file(char *filename, char **content_ptr,
-			size_t *content_len_ptr);
+		   size_t *content_len_ptr, size_t num_lines);
 
 int get_lines_from_file(char *filename, char ***lines_ptr, size_t **lines_lengths_ptr,
-                        size_t *lines_total_ptr);
+                        size_t *lines_total_ptr, size_t num_lines);
 
 int get_lines_from_standard_input(char ***lines, size_t **lines_lengths, size_t *lines_total);
 
@@ -31,8 +31,14 @@ void print_error_message_badly_formed_call(const char *head_or_tail);
 
 ssize_t convert_from_string_to_number(const char *str, char **endptr);
 
-int print_certain_number_of_lines(size_t num_lines_to_print,
-				  bool starts_from_beginning, char **lines,
-				  size_t *lines_lengths, size_t lines_total);
+int print_lines_2(bool starts_from_beginning, char **lines,
+		size_t *lines_lengths, size_t lines_total);
 
+int my_strlen(char *str);
+
+void write_conversion_error(char *invalid_number);
+
+int print_lines(char **lines,
+		size_t *lines_lengths, size_t lines_total);
 #endif
+
