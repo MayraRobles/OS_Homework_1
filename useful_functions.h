@@ -25,7 +25,7 @@ int read_from_file(char *filename, char **content_ptr,
 int get_lines_from_file(char *filename, char ***lines_ptr, size_t **lines_lengths_ptr,
                         size_t *lines_total_ptr, size_t num_lines);
 
-int get_lines_from_standard_input(char ***lines, size_t **lines_lengths, size_t *lines_total);
+int get_lines_from_standard_input(char ***lines, size_t **lines_lengths, size_t *lines_total, size_t num_lines);
 
 void print_error_message_badly_formed_call(const char *head_or_tail);
 

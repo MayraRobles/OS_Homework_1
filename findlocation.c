@@ -9,25 +9,22 @@
 #include <sys/mman.h>
 #include "error_messages.h"
 #include "string_manipulation.h"
+#include "useful_functions.h"
 
 typedef struct {
-  char prefix[7]; // 6 digits + null terminator
-  char location[26]; // 25 characters + null terminator
-  char newline;
+  char prefix[6];    // 6 digits
+  char location[25]; // 25 characters
+  char newline;      // '\n'
 } nanpa_entry_t;
 
 
 // Function prototypes
-static int compare_entries(char *prefix_a, char *prefix_b);
-static int perform_binary_search(nanpa_entry_t *entries, size_t n, char *prefix);
-static int perform_lookup_doit(nanpa_entry_t *entries, size_t n, char *prefix);
-static int perform_lookup(void *ptr, size_t size, char *prefix);
 void *map_file_to_memory(const char *filename, size_t *file_size);
-
+static int perform_lookup(void *ptr, size_t size, char *word);
+static int perform_lookup_doit(nanpa_entry_t *dict, size_t n, char *word);
 
 int main(int argc, char **argv) {
     char *filename = "nanpa"; // Assuming nanpa is the file name
-    char *prefix;
     size_t file_size;
     void *ptr;
 
@@ -66,7 +63,6 @@ int main(int argc, char **argv) {
 	  write_conversion_error_message(argv[2]);
 	  return 1;
 	}
-	prefix = argv[2];
 	
 	/* Map the file into memory */
 	ptr = map_file_to_memory(argv[1], &file_size);
@@ -76,107 +72,16 @@ int main(int argc, char **argv) {
 	}
 	/* Now the contents of our file are mapped into memory.
 	   Here, we have the file contents in memory pointed to by 'ptr'
-	   with 'file_size' bytes in size.
-	   Perform a lookup of the prefix given in argument. */
-
-	/**************************************************************************/
-	nanpa_entry_t *entries = (nanpa_entry_t *)ptr; // Cast ptr to nanpa_entry_t pointer
-	// Calculate the number of entries based on the file size and the size of each entry
-	size_t num_entries = file_size / sizeof(nanpa_entry_t);
-	// Iterate over each entry
-	//for (size_t i = 0; i < num_entries; ++i) {
-	  // Access individual fields of each entry
-	// printf("Prefix: %s, Location: %s\n", entries[i].prefix, entries[i].location);
-	//	}
-	for (size_t i = 0; i < num_entries; ++i) {
-	  // Remove newline character from the prefix
-	  entries[i].prefix[strcspn(entries[i].prefix, "\n")] = '\0';
-
-	  // Print the prefix and location for each entry
-	  printf("Prefix: %s, Location: %s\n", entries[i].prefix, entries[i].location);
-	}
-	/************************************************************************/
-
-       
-	if (perform_lookup(ptr, file_size, prefix) < 0) {
-	  fprintf(stderr, "Error at looking up \"%s\" in the file \"%s\"\n", prefix, filename);
-	  if (munmap(ptr, file_size) < 0) {
-	    fprintf(stderr, "Error at unmapping the file \"%s\": %s\n", filename, strerror(errno));
-	  }
-	  return 1;
-	  } 
-
-	/* Unmap the memory */
+	   with 'file_size' bytes in size. */
+	perform_lookup(ptr, file_size, argv[2]);
+	
 	if (munmap(ptr, file_size) < 0) {
-	  fprintf(stderr, "Error at unmapping the file \"%s\": %s\n", filename, strerror(errno));
-	  return 1;
+	    fprintf(stderr, "Error at unmapping the file \"%s\": %s\n", filename, strerror(errno));
 	}
-	break;
-      default:
-	/* When called with more arguments, the tool fails and
-	   and displays a usage message on standard error */
-	badly_formed_findlocation_call_error_message();
-	return 1;
     }
 
     return 0;
 }
-
-
-static int compare_entries(char *prefix_a, char *prefix_b) {
-  return strcmp(prefix_a, prefix_b);
-}
-
-
-static int perform_binary_search(nanpa_entry_t *entries, size_t n, char *prefix) {
-  ssize_t l = 0, r = n - 1;
-  
-  while (l <= r) {
-    ssize_t m = (l + r) / 2;
-    int res = compare_entries(entries[m].prefix, prefix);
-    
-    if (res == 0) {
-      printf("Location: %s\n", entries[m].location);
-      return 0;
-    } else if (res < 0) {
-      l = m + 1;
-    } else {
-      r = m - 1;
-    }
-  }
-  
-  printf("Location not found for prefix %s\n", prefix);
-  return 0;
-}
-
-
-static int perform_lookup_doit(nanpa_entry_t *entries, size_t n, char *prefix) {
-  /* Really do the binary search */
-  return perform_binary_search(entries, n, prefix);
-}
-
-
-static int perform_lookup(void *ptr, size_t size, char *prefix) {
-  size_t n;
-
-  /* Check that the entries size is a multiple of full entries */
-  /* if ((size % sizeof(nanpa_entry_t)) != ((size_t) 0)) {
-    fprintf(stderr, "The file is not properly formatted\n");
-    return -1;
-    }*/
-
-  /* We know that it is a full list (it's the right multiple in
-     size).
-
-     Let's compute the number of entries in the list.
-     
-  */
-  n = size / sizeof(nanpa_entry_t);
-
-  /* Really do the lookup */
-  return perform_lookup_doit((nanpa_entry_t *) ptr, n, prefix);
-}
-
 
 
 /* Function to map the content of a file into memory */
@@ -222,4 +127,71 @@ void *map_file_to_memory(const char *filename, size_t *file_size) {
 
     return ptr;
 }
+
+
+
+
+static int perform_lookup(void *ptr, size_t size, char *word) {
+  size_t n;
+  /*
+  printf("SIZE OF FILE: %zu\n", size);
+  printf("SIZE OF ENTRY: %zu\n", sizeof(nanpa_entry_t));
+  n = size / sizeof(nanpa_entry_t);
+  printf("SIZE / NANPA ENTRY: %zu\n", n);
+  n = (size % sizeof(nanpa_entry_t));
+  printf("REMAINDER: %zu\n", n);
+  */
+
+  /* Check that the dictionary size is a multiple of full entries */
+  if ((size % sizeof(nanpa_entry_t)) != ((size_t) 0)) {
+    fprintf(stderr, "The file is not properly formatted\n");
+    return -1;
+  }
+
+  /* We know that it is a full dictionary (it's the right multiple in
+     size).
+
+     Let's compute the number of entries in the dictionary.
+     
+  */
+  n = size / sizeof(nanpa_entry_t);  
+   
+  /* Really do the lookup */
+  return perform_lookup_doit((nanpa_entry_t *) ptr, n, word); 
+}
+
+
+static int perform_lookup_doit(nanpa_entry_t *dict, size_t n, char *word) {
+  ssize_t l, r, m, nn;
+  int res;
+  
+  nn = (ssize_t) n;
+  if (nn < ((ssize_t) 0)) {
+    fprintf(stderr, "The file is too large\n");
+    return -1;
+  }
+
+  for (l=((ssize_t) 0), r=(nn-((ssize_t) 1)); l<=r;) {
+    m = (l + r) >> 1;
+    
+    res = strncmp(dict[m].prefix, word, 6);
+    
+    if (res == 0) {
+      my_write(1, "The location of ",  my_strlen("The location of "));
+      my_write(1, dict[m].prefix, 6);
+      my_write(1, " is ", my_strlen(" is "));
+      my_write(1, dict[m].location, 25);
+      my_write(1, "\n", my_strlen("\n"));
+      return 0;
+    }
+    if (res < 0) {
+      l = m + ((ssize_t) 1);
+    } else {
+      r = m - ((ssize_t) 1);
+    }
+  }
+  printf("The word %s does not figure in the dictionary\n", word);
+  return 0;
+}
+
 

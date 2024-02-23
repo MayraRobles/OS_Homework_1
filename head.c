@@ -7,6 +7,8 @@
 #include <stdbool.h>
 #include "useful_functions.h"
 #include "string_manipulation.h"
+#include "error_messages.h"
+
 
 #define BUFFER_SIZE                      (((size_t) 4096))
 #define FIRST_ALLOCATION_SIZE            (((size_t) 16))
@@ -33,7 +35,6 @@ int main(int argc, char **argv) {
     */
     switch (argc) {
       case 4:
-	printf("HI\n");
 	/* Four arguments means that the filename and number of
 	   lines are specified */
 	
@@ -45,15 +46,14 @@ int main(int argc, char **argv) {
 	  */
 	  
 	  converted_num = convert_from_string_to_number(argv[2], &endptr);
-	  printf("%d\n",  converted_num);
+	  
 	  if (argv[2] == endptr || *endptr != '\0') {
 	     /* Conversion from string to number failed */
-	    write_conversion_error(argv[2]);
+	    write_conversion_error_message(argv[2]);
 	    return 1;
 	  } else {
 	    /* Conversion was successful */
 	    num_lines = converted_num;
-	    printf("%d\n", num_lines);
 	  }
 
 	  if (get_lines_from_file(argv[3], &lines, &lines_lengths,
@@ -73,7 +73,7 @@ int main(int argc, char **argv) {
 	  
 	  if (argv[3] == endptr || *endptr != '\0') {
 	    /* Conversion from string to number failed */
-	    write_conversion_error(argv[3]);
+	    write_conversion_error_message(argv[3]);
 	    return 1;
 	  } else {
 	    /* Conversion was successful */
@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
 	  
         } else {
 	  /* The four arguments are not provided in a format we expect*/
-	  print_error_message_badly_formed_call("head");
+	  write_badly_formed_call_error_message("head");
 	  return 1;
         }
         break;
@@ -104,22 +104,22 @@ int main(int argc, char **argv) {
 	  
 	  if (argv[2] == endptr || *endptr != '\0') {
 	    /* Conversion from string to number failed */
-	    write_conversion_error(argv[2]);
+	    write_conversion_error_message(argv[2]);
 	    return 1;
 	  } else {
 	    /* Conversion was successful */
 	    num_lines = converted_num;
 	  }
 
-	  if (get_lines_from_standard_input(
-	         &lines, &lines_lengths, &lines_total) == 1) {
+	  if (get_lines_from_standard_input(&lines, &lines_lengths,
+					    &lines_total, num_lines) == 1) {
 	    /* Failed to obtain the lines array from standard input*/
 	    return 1;
 	  }
 	  
 	} else {
 	   /* The three arguments are not provided in a format we expect*/
-	   print_error_message_badly_formed_call("head");
+	   write_badly_formed_call_error_message("head");
 	   return 1;
 	}	
         break;
@@ -138,7 +138,7 @@ int main(int argc, char **argv) {
 	   
 	 } else {
 	   /* The two arguments are not provided in a format we expect*/
-	   print_error_message_badly_formed_call("head");
+	   write_badly_formed_call_error_message("head");
 	   return 1;
 	 }
 	 break;
@@ -146,15 +146,15 @@ int main(int argc, char **argv) {
         /* argv[0]: The program name
 	   Default number of lines is 10
         */
-	if (get_lines_from_standard_input(
-	       &lines, &lines_lengths, &lines_total) == 1) {
+	if (get_lines_from_standard_input(&lines, &lines_lengths,
+					  &lines_total, num_lines) == 1) {
 	  /* Failed to obtain the lines array from the standard input*/
 	  return 1;
 	}
 	break;
 	
       default:
-	print_error_message_badly_formed_call("head");
+	write_badly_formed_call_error_message("head");
         return 1;
         break;
     }
