@@ -25,9 +25,7 @@ int read_from_file(char *filename, char **content_ptr,
 int get_lines_from_file(char *filename, char ***lines_ptr, size_t **lines_lengths_ptr,
                         size_t *lines_total_ptr, size_t num_lines);
 
-int get_lines_from_standard_input(char ***lines, size_t **lines_lengths, size_t *lines_total, size_t num_lines);
-
-void print_error_message_badly_formed_call(const char *head_or_tail);
+int get_lines_from_stdin(char ***lines, size_t **lines_lengths, size_t *lines_total);
 
 ssize_t convert_from_string_to_number(const char *str, char **endptr);
 
@@ -40,5 +38,10 @@ void write_conversion_error(char *invalid_number);
 
 int print_lines(char **lines,
 		size_t *lines_lengths, size_t lines_total);
+
+void *get_chars_from_standard_input(size_t *total_chars);
+
+size_t get_number_of_lines();
+
 #endif
 

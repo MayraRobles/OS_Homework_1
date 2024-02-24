@@ -1,17 +1,15 @@
-#include "useful_functions.h"
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
 #include <stdint.h>
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
-
+#include "useful_functions.h"
 #include "string_manipulation.h"
 #include "error_messages.h"
 
@@ -271,8 +269,8 @@ int get_lines_from_file(char *filename, char ***lines_ptr, size_t **lines_length
    and then stores the lines in an array, as well as
    an array containing the lengths of each line.
 */
-int get_lines_from_standard_input(char ***lines_ptr, size_t **lines_lengths_ptr,
-				  size_t *lines_total_ptr, size_t num_lines) {
+int get_lines_from_stdin(char ***lines_ptr, size_t **lines_lengths_ptr,
+			 size_t *lines_total_ptr) {
   char buffer[BUFFER_SIZE];
   ssize_t read_res;
   size_t amount_new_chars, i;
@@ -327,10 +325,6 @@ int get_lines_from_standard_input(char ***lines_ptr, size_t **lines_lengths_ptr,
 
       if (c == '\n') {
 	current_total_lines++; // Increment line counter on newline
-	printf("CURRENT TOTAL LINES: %ld, NUM_LINES: %ld\n", current_total_lines, num_lines);
-	if (current_total_lines >= num_lines) {
-	  break;
-	}
       }
 
       /* Put the character into the current line, even if it is a new
@@ -448,12 +442,7 @@ int get_lines_from_standard_input(char ***lines_ptr, size_t **lines_lengths_ptr,
 	current_line_len = (size_t) 0;
 	current_line_size = (size_t) 0;
       }
-    }
-    
-    if (current_total_lines >= num_lines) {
-      break;
-    }
-    
+    }    
   }
 
   /* Here, we have read in all lines from the input.
@@ -654,3 +643,4 @@ int print_lines(char **lines, size_t *lines_lengths, size_t lines_total) {
    free(lines_lengths);
    return 0;
 }
+

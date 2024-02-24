@@ -19,7 +19,9 @@ typedef struct {
 
 
 // Function prototypes
-void *map_file_to_memory(const char *filename, size_t *file_size);
+//void *map_stdin_to_memory(size_t *input_size);
+void *map_stdin_to_memory();
+void *map_file_to_memory(const char *filename, size_t *input_size);
 static int perform_lookup(void *ptr, size_t size, char *word);
 static int perform_lookup_doit(nanpa_entry_t *dict, size_t n, char *word);
 
@@ -27,9 +29,8 @@ int main(int argc, char **argv) {
     char *filename = "nanpa"; // Assuming nanpa is the file name
     size_t file_size;
     void *ptr;
-
     int converted_num;
-    char *endptr;
+    char *endptr, *prefix;
     
 
     /* Handle all calls */
@@ -41,15 +42,30 @@ int main(int argc, char **argv) {
 	return 1;
       case 2:
 	/* When called with two arguments, we read from standard
-	   input to look for the location associated with the number
-	   in the argument and display that location.*/
+	   input and look for the location associated with the number
+	   in the argument and display that location.
+	      argv[0]: The program name
+	      argv[1]: The number to look for
+	*/
+	void *chars_ptr;
+	size_t total_chars;
+	
 	converted_num = convert_from_string_to_number(argv[1], &endptr);
 	if (argv[1] == endptr || *endptr != '\0') {
 	  /* Conversion from string to number failed */
 	  write_conversion_error_message(argv[1]);
 	  return 1;
 	}
-	printf("%d\n", converted_num);
+	chars_ptr = get_chars_from_standard_input(&total_chars);
+	if (chars_ptr == NULL) {
+	  return 1;
+	}
+                                                                           
+	/* Now the contents of standard in  are mapped into memory.
+	   Here, we have the standard in contents in memory pointed to by
+	   'chars_ptr' with 'total_chars' bytes in size. */
+	perform_lookup(chars_ptr, total_chars, argv[1]);
+	
 	break;
       case 3:
 	/* When called with three arguments, we look up the number in a file
@@ -57,26 +73,38 @@ int main(int argc, char **argv) {
 	     argv[1]: The file name
 	     argv[2]: The number to look for
 	*/
+	prefix = argv[2];
+	filename = argv[1];
 	converted_num = convert_from_string_to_number(argv[2], &endptr);
 	if (argv[2] == endptr || *endptr != '\0') {
 	  /* Conversion from string to number failed */
-	  write_conversion_error_message(argv[2]);
-	  return 1;
-	}
+	  /* Maybe the three arguments are in this order:
+	       argv[0]: The program name
+	       argv[1]: The number to look for
+	       argv[2]: The file name
+	  */
+	  prefix = argv[1];
+	  filename = argv[2];
+	  converted_num = convert_from_string_to_number(argv[1], &endptr);
+	  if (argv[1] == endptr || *endptr != '\0') {
+	    badly_formed_findlocation_call_error_message();
+	    return 1;
+	  }
+	} 
 	
 	/* Map the file into memory */
-	ptr = map_file_to_memory(argv[1], &file_size);
+	ptr = map_file_to_memory(filename, &file_size);
 	if (ptr == NULL) {
-	  printf("Hell, something went wrong");
-	  return 1; // Error occurred, exit with failure
+	  return 1;
 	}
 	/* Now the contents of our file are mapped into memory.
 	   Here, we have the file contents in memory pointed to by 'ptr'
 	   with 'file_size' bytes in size. */
-	perform_lookup(ptr, file_size, argv[2]);
+	perform_lookup(ptr, file_size, prefix);
 	
 	if (munmap(ptr, file_size) < 0) {
-	    fprintf(stderr, "Error at unmapping the file \"%s\": %s\n", filename, strerror(errno));
+	    fprintf(stderr, "Error at unmapping the file \"%s\": %s\n",
+		    filename, strerror(errno));
 	}
     }
 
@@ -131,9 +159,9 @@ void *map_file_to_memory(const char *filename, size_t *file_size) {
 
 
 
-static int perform_lookup(void *ptr, size_t size, char *word) {
-  size_t n;
+static int perform_lookup(void *ptr, size_t size, char *desired_prefix) {
   /*
+  size_t n;
   printf("SIZE OF FILE: %zu\n", size);
   printf("SIZE OF ENTRY: %zu\n", sizeof(nanpa_entry_t));
   n = size / sizeof(nanpa_entry_t);
@@ -141,10 +169,9 @@ static int perform_lookup(void *ptr, size_t size, char *word) {
   n = (size % sizeof(nanpa_entry_t));
   printf("REMAINDER: %zu\n", n);
   */
-
   /* Check that the dictionary size is a multiple of full entries */
   if ((size % sizeof(nanpa_entry_t)) != ((size_t) 0)) {
-    fprintf(stderr, "The file is not properly formatted\n");
+    fprintf(stderr, "The file or stdin data is not properly formatted\n");
     return -1;
   }
 
@@ -157,14 +184,14 @@ static int perform_lookup(void *ptr, size_t size, char *word) {
   n = size / sizeof(nanpa_entry_t);  
    
   /* Really do the lookup */
-  return perform_lookup_doit((nanpa_entry_t *) ptr, n, word); 
+  return perform_lookup_doit((nanpa_entry_t *) ptr, n, desired_prefix); 
 }
 
 
-static int perform_lookup_doit(nanpa_entry_t *dict, size_t n, char *word) {
+static int perform_lookup_doit(nanpa_entry_t *dict, size_t n, char *desired_prefix) {
   ssize_t l, r, m, nn;
   int res;
-  
+
   nn = (ssize_t) n;
   if (nn < ((ssize_t) 0)) {
     fprintf(stderr, "The file is too large\n");
@@ -173,9 +200,8 @@ static int perform_lookup_doit(nanpa_entry_t *dict, size_t n, char *word) {
 
   for (l=((ssize_t) 0), r=(nn-((ssize_t) 1)); l<=r;) {
     m = (l + r) >> 1;
-    
-    res = strncmp(dict[m].prefix, word, 6);
-    
+    res = strncmp(dict[m].prefix, desired_prefix, 6);
+      
     if (res == 0) {
       my_write(1, "The location of ",  my_strlen("The location of "));
       my_write(1, dict[m].prefix, 6);
@@ -190,8 +216,7 @@ static int perform_lookup_doit(nanpa_entry_t *dict, size_t n, char *word) {
       r = m - ((ssize_t) 1);
     }
   }
-  printf("The word %s does not figure in the dictionary\n", word);
+  printf("The prefix %s does not figure in the dictionary\n", desired_prefix);
   return 0;
 }
-
 
