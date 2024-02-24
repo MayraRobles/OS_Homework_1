@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <sys/mman.h>
 #include "useful_functions.h"
 #include "string_manipulation.h"
 #include "error_messages.h"
@@ -18,14 +19,18 @@
 int print_last_n_lines(char ***lines_ptr, size_t **lines_lengths_ptr,
 		       size_t num_lines_total, size_t num_lines);
 
+void print_last_n_lines_mapped_memory(int num_lines, char *ptr, int total_lines);
+
+
 int main(int argc, char **argv) {
-    int num_lines;
+    int num_lines = 10;
     int converted_num;
     char *endptr;
-
     char **lines;
     size_t *lines_lengths;
     size_t lines_total;
+    void *ptr;
+    size_t file_size;
 
     lines = NULL;
     lines_lengths = NULL;
@@ -42,7 +47,7 @@ int main(int argc, char **argv) {
 	/* Four arguments means that the filename and number of
 	   lines are specified */
 	
-	if (strcmp(argv[1], "-n") == 0) {
+	if (my_strcmp(argv[1], "-n") == 0) {
 	  /* argv[0]: The program name
 	     argv[1]: The -n option
 	     argv[2]: The number of lines argument
@@ -59,13 +64,24 @@ int main(int argc, char **argv) {
 	    num_lines = converted_num;
 	  }
 
-	  if (get_lines_from_file(argv[3], &lines, &lines_lengths,
-				  &lines_total, num_lines) == 1) {
-	    /* Failed to obtain the lines array from the file contents*/
+	  /* Map the file into memory */
+	  ptr = map_file_to_memory(argv[3], &file_size);
+	  if (ptr == NULL) {
+	    return 1;
+ 	  }
+	  
+	  lines_total = count_lines_in_char_array(ptr);
+	  print_last_n_lines_mapped_memory(num_lines, ptr, lines_total);
+
+	  /* Now the contents of our file are mapped into memory.
+	     Here, we have the file contents in memory pointed to by 'ptr'
+	     with 'file_size' bytes in size. */
+	  if (munmap(ptr, file_size) < 0) {
+	    write_unmapping_error_message(argv[3]);
 	    return 1;
 	  }
 	  
-        } else if (strcmp(argv[2], "-n") == 0) {
+        } else if (my_strcmp(argv[2], "-n") == 0) {
 	  /* argv[0]: The program name
 	     argv[1]: The file name
 	     argv[2]: The -n option
@@ -82,12 +98,23 @@ int main(int argc, char **argv) {
 	    num_lines = converted_num;
 	  }
 
-	  if (get_lines_from_file(argv[1], &lines, &lines_lengths,
-				  &lines_total, num_lines) == 1) {
-	    /* Failed to obtain the lines array from the file contents*/
+	  /* Map the file into memory */
+	  ptr = map_file_to_memory(argv[1], &file_size);
+	  if (ptr == NULL) {
+	    return 1;
+ 	  }
+	  
+	  lines_total = count_lines_in_char_array(ptr);
+	  print_last_n_lines_mapped_memory(num_lines, ptr, lines_total);
+
+	  /* Now the contents of our file are mapped into memory.
+	     Here, we have the file contents in memory pointed to by 'ptr'
+	     with 'file_size' bytes in size. */
+	  if (munmap(ptr, file_size) < 0) {
+	    write_unmapping_error_message(argv[1]);
 	    return 1;
 	  }
-	  
+	
         } else {
 	  /* The four arguments are not provided in a format we expect*/
 	  write_badly_formed_call_error_message("head");
@@ -95,7 +122,7 @@ int main(int argc, char **argv) {
         }
         break;
       case 3:
-	if (strcmp(argv[1], "-n") == 0) {
+	if (my_strcmp(argv[1], "-n") == 0) {
 	  /* argv[0]: The program name
 	     argv[1]: The -n option
 	     argv[2]: The number of lines argument
@@ -121,20 +148,31 @@ int main(int argc, char **argv) {
 	   /* The three arguments are not provided in a format we expect*/
 	   write_badly_formed_call_error_message("head");
 	   return 1;
-	}	
+	}
+	print_last_n_lines(&lines, &lines_lengths, lines_total, num_lines);
         break;
       case 2:
-         if (strcmp(argv[1], "-n") != 0) {
-	    /* argv[0]: The program name
-	       argv[1]: The file name
-	    */
-	   
-	   if (get_lines_from_file(
-	          argv[1], &lines, &lines_lengths,
-		  &lines_total, num_lines) == 1) {
-	     /* Failed to obtain the lines array from the file contents*/
-	     return 1;
-	   }
+         if (my_strcmp(argv[1], "-n") != 0) {
+	   /* argv[0]: The program name
+	      argv[1]: The file name
+	   */
+
+	  /* Map the file into memory */
+	  ptr = map_file_to_memory(argv[1], &file_size);
+	  if (ptr == NULL) {
+	    return 1;
+ 	  }
+	  
+	  lines_total = count_lines_in_char_array(ptr);
+	  print_last_n_lines_mapped_memory(num_lines, ptr, lines_total);
+
+	  /* Now the contents of our file are mapped into memory.
+	     Here, we have the file contents in memory pointed to by 'ptr'
+	     with 'file_size' bytes in size. */
+	  if (munmap(ptr, file_size) < 0) {
+	    write_unmapping_error_message(argv[1]);
+	    return 1;
+	  }	
 	   
 	 } else {
 	   /* The two arguments are not provided in a format we expect*/
@@ -151,8 +189,8 @@ int main(int argc, char **argv) {
 	  /* Failed to obtain the lines array from the standard input*/
 	  return 1;
 	}
+	print_last_n_lines(&lines, &lines_lengths, lines_total, num_lines);
 	break;
-	
       default:
 	write_badly_formed_call_error_message("head");
         return 1;
@@ -167,10 +205,8 @@ int main(int argc, char **argv) {
           or that remain unchanged with the default number.
 
        Now, we can simply print the specified number of lines.
-    */
-    printf("WE ARE ABOUT TO PRINT THE LINES\n");
-    
-    return print_last_n_lines(&lines, &lines_lengths, lines_total, num_lines);
+    */    
+    return 0;
 }
 
 
@@ -185,7 +221,7 @@ int print_last_n_lines(char ***lines_ptr, size_t **lines_lengths_ptr,
   if (num_lines > num_lines_total) {
     /* If the number fo lines  requested is more than the
        number of lines provided in stdin, print everything*/
-    write_less_number_of_lines_than_content_message("standar input");
+    write_less_number_of_lines_than_content_message("standard input");
     return print_lines(*lines_ptr, *lines_lengths_ptr, num_lines_total);
   }
   
@@ -193,7 +229,8 @@ int print_last_n_lines(char ***lines_ptr, size_t **lines_lengths_ptr,
   /* We need to write the first num_lines lines to standard out.*/
   for (k = start; k < num_lines_total; k++) {
     if (my_write(1,(*lines_ptr)[k], (*lines_lengths_ptr)[k]) < 0) {
-      fprintf(stderr, "Error while reading: %s\n", strerror(errno));
+      write_opening_error_message_no_filename();
+            
 
       /* Deallocate everything we allocated */
       for (i = 0; i < num_lines_total; i++) {
@@ -214,3 +251,42 @@ int print_last_n_lines(char ***lines_ptr, size_t **lines_lengths_ptr,
    return 0;
 }
 
+
+void print_last_n_lines_mapped_memory(int num_lines, char *ptr, int total_lines) {
+    int lines_to_print = (num_lines < total_lines) ? num_lines : total_lines;
+    int lines_count = 0;
+    char *temp = ptr;
+
+    if (lines_to_print == total_lines)
+      write_less_number_of_lines_than_content_message("file");
+      
+    // Traverse the string to find the starting position of the last num_lines
+    while (*temp != '\0') {
+        if (*temp == '\n') {
+            lines_count++;
+        }
+        temp++;
+    }
+    
+    /* Now temp points to the end of the string or the last character
+       before the null terminator.  Move temp backward to reach the
+       end of the last num_lines
+    */
+    while (temp > ptr && (lines_count + 1) > total_lines - num_lines) {
+        if (*temp == '\n') {
+            lines_count--;
+        }
+	temp--;
+    }
+
+    // Skip the first newline if encountered
+    if (*temp == '\n') {
+        temp++;
+    }
+    
+    // Print the last num_lines
+    while (*temp != '\0') {
+      my_write(STDERR_FILENO, temp, 1);
+        temp++;
+    }
+}

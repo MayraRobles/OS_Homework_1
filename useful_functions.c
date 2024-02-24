@@ -9,9 +9,11 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
+#include <sys/mman.h> 
 #include "useful_functions.h"
 #include "string_manipulation.h"
 #include "error_messages.h"
+
 
 #define CONTENT_DEFAULT_SIZE (((size_t) 16))
 
@@ -117,7 +119,6 @@ int read_from_file(char *filename, char **content_ptr,
       c = buffer[i];
       if (c == '\n') {
 	current_total_lines++; // Increment line counter on newline
-	printf("CURRENT TOTAL LINES: %ld, NUM_LINES: %ld\n", current_total_lines, num_lines);
 	if (current_total_lines >= num_lines) {
 	  break;
 	}
@@ -580,44 +581,6 @@ int get_lines_from_stdin(char ***lines_ptr, size_t **lines_lengths_ptr,
   return 0;
 }
 
-
-
-int print_lines_2(bool starts_from_beginning, char **lines,
-	        size_t *lines_lengths, size_t lines_total) {
-    size_t i, k, start, stop;
-
-    if (starts_from_beginning) {
-      start = 0;
-    } else {
-      //start = lines_total - num_lines_to_print;
-      stop = lines_total;
-    }
-
-    /* We need to write the first num_lines lines to standard out.*/
-    for (k = start; k < stop; k++) {
-        if (my_write(1, lines[k], lines_lengths[k]) < 0) {
-	fprintf(stderr, "Error while reading: %s\n", strerror(errno));
-
-	/* Deallocate everything we allocated */
-	for (i = 0; i < lines_total; i++) {
-	  free(lines[i]);
-	}
-	free(lines);
-	free(lines_lengths);
-	return 1;
-      }
-    }
-
-    // Free memory allocated for lines and lines_length
-   for (i = 0; i < lines_total; i++) {
-     free(lines[i]);
-   }
-   free(lines);
-   free(lines_lengths);
-   return 0;
-}
-
-
 int print_lines(char **lines, size_t *lines_lengths, size_t lines_total) {
     size_t i, k;
 
@@ -644,3 +607,109 @@ int print_lines(char **lines, size_t *lines_lengths, size_t lines_total) {
    return 0;
 }
 
+
+
+/* Function to map the content of a file into memory */
+void *map_file_to_memory(const char *filename, size_t *file_size) {
+    int fd;
+    off_t res_lseek;
+    void *ptr;
+
+    /* Open the file for reading */
+    fd = open(filename, O_RDONLY);
+    if (fd < 0) {
+        fprintf(stderr, "Error at opening \"%s\": %s\n", filename, strerror(errno));
+        return NULL;
+    }
+
+    /* Figure out the length of the file */
+    res_lseek = lseek(fd, ((off_t) 0), SEEK_END);
+    if (res_lseek < ((off_t) 0)) {
+        fprintf(stderr, "Error at using lseek on \"%s\": %s\n", filename, strerror(errno));
+        if (close(fd) < 0) {
+            fprintf(stderr, "Error at closing \"%s\": %s\n", filename, strerror(errno));
+        }
+        return NULL;
+    }
+
+    *file_size = (size_t) res_lseek;
+
+    /* Map the content of the file described by fd into memory */
+    ptr = mmap(NULL, *file_size, PROT_READ, MAP_SHARED, fd, ((off_t) 0));
+    if (ptr == MAP_FAILED) {
+        fprintf(stderr, "Error at mapping \"%s\" to memory: %s\n", filename, strerror(errno));
+        if (close(fd) < 0) {
+            fprintf(stderr, "Error at closing \"%s\": %s\n", filename, strerror(errno));
+        }
+        return NULL;
+    }
+
+    /* Close the file descriptor */
+    if (close(fd) < 0) {
+        fprintf(stderr, "Error at closing \"%s\": %s\n", filename, strerror(errno));
+        return NULL;
+    }
+
+    return ptr;
+}
+
+
+void* get_chars_from_standard_input(size_t *total_size) {
+    char buffer[BUFFER_SIZE];
+    ssize_t read_res;
+    size_t total_read = 0;
+    void *data = NULL;
+
+    for (;;) {
+        // Read the next chunk of data from standard input
+        read_res = read(STDIN_FILENO, buffer, sizeof(buffer));
+        
+        // Handle errors
+        if (read_res < 0) {
+            fprintf(stderr, "Error while reading: %s\n", strerror(errno));
+            free(data); // Free the memory allocated for data
+            return NULL;
+        }
+        
+        // If we hit EOF, break out of the read loop
+        if (read_res == 0)
+            break;
+        
+        // Allocate or reallocate memory for data
+        data = realloc(data, total_read + read_res);
+        if (data == NULL) {
+            fprintf(stderr, "Memory allocation failed\n");
+            return NULL;
+        }
+        
+        // Copy the newly read data into the data buffer
+        memcpy((char*)data + total_read, buffer, read_res);
+        total_read += read_res;
+    }
+    
+    // Set the total_size pointer if provided
+    if (total_size != NULL)
+        *total_size = total_read;
+    
+    return data;
+}
+
+
+int count_lines_in_char_array(char *ptr) {
+    int lines = 0;
+    char *temp = ptr;
+    
+    while (*temp != '\0') {
+        if (*temp == '\n') {
+            lines++;
+        }
+        temp++;
+    }
+    
+    // If the string doesn't end with a newline but has content, count it as a line
+    if (temp != ptr && *(temp - 1) != '\n') {
+        lines++;
+    }
+    
+    return lines;
+}

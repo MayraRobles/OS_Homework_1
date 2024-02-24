@@ -39,9 +39,14 @@ void write_conversion_error(char *invalid_number);
 int print_lines(char **lines,
 		size_t *lines_lengths, size_t lines_total);
 
-void *get_chars_from_standard_input(size_t *total_chars);
+void *get_chars_from_standard_input(size_t *total_size);
 
 size_t get_number_of_lines();
+
+void *map_file_to_memory(const char *filename, size_t *file_size);
+
+int count_lines_in_char_array(char *ptr);
+
 
 #endif
 

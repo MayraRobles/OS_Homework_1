@@ -222,7 +222,7 @@ int get_first_n_lines_from_stdin(char ***lines_ptr, size_t **lines_lengths_ptr,
 
     /* If we hit EOF, break out of the read loop */
     if (read_res == ((ssize_t) 0)) {
-      write_less_number_of_lines_than_size_of_stdin();
+      write_less_number_of_lines_than_content_message("standard input");
       break;
     }
 

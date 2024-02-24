@@ -35,7 +35,6 @@ int my_strcmp(const char *str1, const char *str2) {
 
 
 ssize_t convert_from_string_to_number(const char *str, char **endptr) {
-  printf("HELLO I AM HERE\n");
   ssize_t result = 0;
   int sign = 1;
 
